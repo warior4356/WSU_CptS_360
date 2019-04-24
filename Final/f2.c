@@ -58,8 +58,9 @@ int my_truncate(MINODE *mip) //currently broken
 int open_file(char *pathname)
 {
   char pathfile[256], mode[256];
-  int flags, ino, i;
+  int flags, ino, i, dev;
   MINODE *mip;
+  
   OFT *oftp;
   if(split_paths(pathname, pathfile, mode) <= 0) { return -1; }
   else if(strcmp("R", mode) == 0){flags = R;}
@@ -67,19 +68,41 @@ int open_file(char *pathname)
   else if(strcmp("RW", mode) == 0){flags = RW;}
   else if(strcmp("APPEND", mode) == 0){flags = APPEND;}
   else{return -1;}
+  char parent[256], child[256], origPathname[512];
+  memset(parent, 0, 256);
+  memset(child, 0, 256);
+  memset(origPathname, 0, 512);
 
-  //get minode
-  ino = getino(dev, pathfile);
-  if( 0 >= ino)
-  {
-    my_creat(pathfile);//create if DNE
-  }
-  ino = getino(dev,pathfile);
-  if( 0 >= ino)
-  {
-    printf("Open file Err\n");
+  strcpy(origPathname, pathfile);
+  //check root or dir
+  if(!strcmp(pathfile,"")){
+    printf("Missing operand\n"); 
     return -1;
   }
+  if(pathfile[0] == '/') { dev = root->dev; }
+  else { dev = running->cwd->dev; }
+
+  dname(pathfile, parent);
+  bname(origPathname, child);
+  ino = getino(dev, parent);
+  if(ino <= 0)
+  {
+    printf("Invalid.\n");
+    return -1;
+  }
+  mip = iget(dev, ino);
+  ino = search(dev, child, &(mip->INODE));
+
+  if(ino <= 0){
+    my_creat(child);//create if DNE
+    ino = getino(dev,child);
+    if( 0 >= ino)
+    {
+    printf("Open file Err\n");
+    return -1;
+    }
+  }
+
   mip = iget(dev, ino);
   if(!S_ISREG(mip->INODE.i_mode))
   {
@@ -582,4 +605,38 @@ int pdf(char *pathname)
     i++;
   }
   printf("--------------------------------------\n");
+}
+
+int my_move(char*pathname)
+{
+  char destination[256], source[256];
+  split_paths(pathname, source, destination);
+  return move_file(source, destination);
+}
+
+int move_file(char*source,char*target)
+{
+  char parent[256], child[256], parentT[256];
+  memset(parent, 0, 256);
+  memset(child, 0, 256);
+  memset(parentT, 0, 256);
+  dname(source, parent);
+  dname(target, parentT);
+  if(strcmp(parent,parentT)){
+    strcpy(child, source);
+    strcat(source, " ");
+    strcat(source, target);
+    printf("im here ese dad = %s source = %s child = %s\n",parent,source,child);
+    my_copy(source);
+    my_unlink(child);
+  }
+  else{
+    strcpy(child, source);
+    strcat(source, " ");
+    strcat(source, target);
+
+    printf("im here dad = %s source = %s child = %s\n",parent,source,child);
+    my_link(source);
+    my_unlink(child);
+  }
 }
