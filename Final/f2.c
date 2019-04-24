@@ -230,7 +230,7 @@ int my_write(int fd, char *buf, int nbytes)
   MINODE *mip; 
   OFT *oftp;
   int count, lblk, start, blk, dblk, remain, offset, iblk;
-  char ibuf[256], dbuf[256];
+  int ibuf[256], dbuf[256];
   char writeBuf[BLKSIZE], *cp, *cq = buf;
   count = 0;
   oftp = running->fd[fd];
@@ -245,7 +245,8 @@ int my_write(int fd, char *buf, int nbytes)
     if(lblk < 12 ) 
     {
       printf("direct\n");
-      if(mip->INODE.i_block[lblk]==0){
+      if(mip->INODE.i_block[lblk] == 0)
+      {
         mip->INODE.i_block[lblk] = balloc(mip->dev);
       }
       blk = mip->INODE.i_block[lblk];
@@ -258,7 +259,7 @@ int my_write(int fd, char *buf, int nbytes)
       if(mip->INODE.i_block[12] == 0)
       {
         mip->INODE.i_block[12] = balloc(mip->dev);
-        memset(ibuf,0,256);
+        memset(ibuf,0,BLKSIZE);
         put_block(mip->dev, mip->INODE.i_block[12], ibuf);
       }
       get_block(mip->dev, mip->INODE.i_block[12], ibuf);
@@ -266,9 +267,8 @@ int my_write(int fd, char *buf, int nbytes)
       if (blk == 0)
       {
         blk = balloc(mip->dev);
-        memset(ibuf,0,256);
+        ibuf[lblk] = blk;
         put_block(mip->dev, mip->INODE.i_block[12], ibuf);
-        blk = ibuf[lblk];
       } 
     }
     //double indirect blocks
@@ -282,32 +282,32 @@ int my_write(int fd, char *buf, int nbytes)
       {
         printf("allocating direct[%d]\n", 13);
         mip->INODE.i_block[13] = balloc(mip->dev);
-        memset(ibuf,0,256);
+        memset(ibuf,0,BLKSIZE);
         put_block(mip->dev, mip->INODE.i_block[13], ibuf);
       }
       printf("dblk = %d offset = %d\n", dblk, offset);
       get_block(mip->dev, mip->INODE.i_block[13], ibuf);
       iblk = ibuf[dblk];
+      printf("iblk = %d\n", iblk);
       if(iblk == 0)
       {
         printf("allocating indirect[%d]\n", dblk);
         iblk = balloc(mip->dev);
-        memset(ibuf,0,256);
+        memset(ibuf,0,BLKSIZE);
+        ibuf[lblk]= iblk;
         put_block(mip->dev, mip->INODE.i_block[13], ibuf);
-        iblk = ibuf[dblk];    
       }
-      get_block(mip->dev, iblk, dbuf);
-      blk = dbuf[offset];
-      printf("blf = %d", blk);
+      get_block(mip->dev, iblk, ibuf);
+      blk = ibuf[offset];
+      printf("blk = %d\n", blk);
       if(blk == 0)
       {
         printf("allocating double indirect[%d]\n", offset);
         blk = balloc(mip->dev);
-        memset(ibuf,0,256);
-        put_block(mip->dev, iblk, dbuf);    
-        blk = dbuf[offset];   
+        ibuf[offset] = blk;
+        put_block(mip->dev, iblk, ibuf);    
       }
-      printf("blf = %d", blk);
+      //printf("blf = %d", blk);
     }
 
 
