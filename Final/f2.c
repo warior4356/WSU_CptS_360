@@ -23,29 +23,33 @@ int my_truncate(MINODE *mip) //currently broken
     }
   }
   //Deallocate Indirect blocks
-  if(mip->INODE.i_block[12] == 0) {return 1;}
-  get_block(dev, mip->INODE.i_block[12], (char*)buf);
-  for(i = 0; i < 256; i++)
+  if(mip->INODE.i_block[12] != 0) 
   {
-    if(buf[i] != 0) {bdalloc(mip->dev, buf[i]);}
-  }
-  bdalloc(mip->dev, mip->INODE.i_block[12]);
-  if(mip->INODE.i_block[13] == 0) {return 1;}
-  memset(buf, 0, 256);
-  get_block(mip->dev, mip->INODE.i_block[13], (char*)buf);
-  for(i = 0; i < 256; i++)
-  {
-    if(buf[i])
+    get_block(dev, mip->INODE.i_block[12], (char*)buf);
+    for(i = 0; i < 256; i++)
     {
-      get_block(mip->dev, buf[i], (char*)buf2);
-      for(j = 0; j < 256; j++)
+      if(buf[i] != 0) {bdalloc(mip->dev, buf[i]);}
+    }
+    bdalloc(mip->dev, mip->INODE.i_block[12]);
+    if(mip->INODE.i_block[13] != 0) 
+    {
+      memset(buf, 0, 256);
+      get_block(mip->dev, mip->INODE.i_block[13], (char*)buf);
+      for(i = 0; i < 256; i++)
       {
-        if(buf2[j] != 0) {bdalloc(mip->dev, buf2[j]);}
+        if(buf[i])
+        {
+          get_block(mip->dev, buf[i], (char*)buf2);
+          for(j = 0; j < 256; j++)
+          {
+            if(buf2[j] != 0) {bdalloc(mip->dev, buf2[j]);}
+          }
+          bdalloc(mip->dev, buf[i]);
+        }
       }
-      bdalloc(mip->dev, buf[i]);
+      bdalloc(mip->dev, mip->INODE.i_block[13]);
     }
   }
-  bdalloc(mip->dev, mip->INODE.i_block[13]);
   mip->INODE.i_atime = mip->INODE.i_mtime = time(0L);
   mip->INODE.i_size = 0;
   mip->dirty = 1;
@@ -112,7 +116,7 @@ int open_file(char *pathname)
               printf("File opened for read\n");
               my_touch(pathfile);
               break;
-      case 1: my_truncate(mip);
+      case 1: my_truncate(oftp->inodeptr);
               printf("File open for write\n");
               oftp->offset = 0;
               my_touch(pathfile);
@@ -551,7 +555,7 @@ int copy_file(char *source, char *target)
 int pdf(char *pathname)
 {
   int i = 0;
-  char *mode;
+  char mode[256];
   printf(" fd     mode    offset     INODE \n");
   printf("----    ----    ------    -------\n");
   while(running->fd[i] != NULL && i < 10)
@@ -560,21 +564,22 @@ int pdf(char *pathname)
     {
       strcpy(mode, "R ");
     }
-    if(running->fd[i]->mode == 1)
+    else if(running->fd[i]->mode == 1)
     {
       strcpy(mode, "W ");
     }
-    if(running->fd[i]->mode == 2)
+    else if(running->fd[i]->mode == 2)
     {
       strcpy(mode, "RW");
     }
-    if(running->fd[i]->mode == 3)
+    else if(running->fd[i]->mode == 3)
     {
       strcpy(mode, "A ");
     }
-    printf("   %d      %s      %d   [%d,%d]\n", i, mode, running->fd[i]->offset,
+    printf("   %d      %s      %d       [%d,%d]\n", i, mode, running->fd[i]->offset,
      running->fd[i]->inodeptr->dev, running->fd[i]->inodeptr->ino);
-    printf("--------------------------------------\n");
+
     i++;
   }
+  printf("--------------------------------------\n");
 }
