@@ -582,6 +582,7 @@ int copy_file(char *source, char *target)
   strcat(source, " R");
   strcat(target, " W");
   int fd = open_file(source);
+  my_creat(target);
   int gd = open_file(target);
   char buf[BLKSIZE];
   int n;
