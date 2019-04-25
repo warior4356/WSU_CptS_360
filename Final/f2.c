@@ -575,10 +575,22 @@ int my_copy(char *pathname)
 }
 int copy_file(char *source, char *target)
 {
+  char temp[BLKSIZE];
+  strcpy(temp, target);
   strcat(source, " R");
   strcat(target, " W");
   int fd = open_file(source);
+  if (fd == -1)
+  {
+    printf("Source Does Not Exist!\n");
+    return -1;
+  }
   int gd = open_file(target);
+  if(gd == -1)
+  {
+    my_creat(temp);
+    gd = open_file(target);
+  }
   char buf[BLKSIZE];
   int n;
 
