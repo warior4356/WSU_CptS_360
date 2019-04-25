@@ -95,8 +95,13 @@ int open_file(char *pathname)
 
   if(ino <= 0)
   {
+    if(flags != W)
+    {
     printf("Open file Err\n");
     return -1;
+    }
+    my_creat(child);
+    ino = getino(dev, child);
   }
 
   mip = iget(dev, ino);
@@ -580,17 +585,7 @@ int copy_file(char *source, char *target)
   strcat(source, " R");
   strcat(target, " W");
   int fd = open_file(source);
-  if (fd == -1)
-  {
-    printf("Source Does Not Exist!\n");
-    return -1;
-  }
   int gd = open_file(target);
-  if(gd == -1)
-  {
-    my_creat(temp);
-    gd = open_file(target);
-  }
   char buf[BLKSIZE];
   int n;
 
