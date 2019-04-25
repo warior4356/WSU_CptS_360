@@ -582,6 +582,11 @@ int copy_file(char *source, char *target)
   strcat(source, " R");
   strcat(target, " W");
   int fd = open_file(source);
+  if (fd == -1)
+  {
+    printf("Source Does Not Exist!\n");
+    return -1;
+  }
   my_creat(target);
   int gd = open_file(target);
   char buf[BLKSIZE];
