@@ -28,3 +28,5 @@ int file_lseek(int fd, int position);
 int my_cat(char *pathname);
 int my_copy(char *pathname);
 int copy_file(char *source, char *target);
+int my_move(char*pathname);
+int move_file(char*source,char*target);
