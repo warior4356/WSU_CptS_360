@@ -3,8 +3,8 @@
 #include "util.h"
 #include "type.h"
 
-static int (*fptr[])(char*) = {(int (*)())my_ls, my_chdir, my_pwd,  my_mkdir, my_chmod, my_creat, my_rmdir, my_link, my_unlink, my_symlink, my_touch, open_file, close_file, write_file, read_file, my_stat, my_lseek, my_cat, my_copy, pdf, my_move, quit};
-static char *cmds[] = {"ls", "cd", "pwd",  "mkdir", "chmod",  "creat", "rmdir", "link", "unlink", "symlink", "touch", "open","close","write","read","stat","lseek","cat","cp", "pdf","mv","quit"};
+static int (*fptr[])(char*) = {(int (*)())my_ls, my_chdir, my_pwd,  my_mkdir, my_chmod, my_creat, my_rmdir, my_link, my_unlink, my_symlink, my_touch, open_file, close_file, write_file, read_file, my_stat, my_lseek, my_cat, my_copy, pfd, my_move, quit};
+static char *cmds[] = {"ls", "cd", "pwd",  "mkdir", "chmod",  "creat", "rmdir", "link", "unlink", "symlink", "touch", "open","close","write","read","stat","lseek","cat","cp", "pfd","mv","quit"};
 
 int main(int argc, char *argv[])
 {

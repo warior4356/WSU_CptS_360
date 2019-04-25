@@ -39,6 +39,6 @@ int rm(MINODE *mip);
 int my_symlink(char *pathname);
 int quit(char *pathname);
 int my_stat (char *pathname);
-int pdf(char *pathname);
+int pfd(char *pathname);
 
 
