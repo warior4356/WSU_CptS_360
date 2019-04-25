@@ -229,7 +229,7 @@ int my_write(int fd, char *buf, int nbytes)
 {
   MINODE *mip; 
   OFT *oftp;
-  int count, lblk, start, blk, dblk, remain;
+  int count, lblk, start, blk, dblk, remain, offset, iblk;
   int ibuf[256], dbuf[256];
   char writeBuf[BLKSIZE], *cp, *cq = buf;
   count = 0;
@@ -244,7 +244,9 @@ int my_write(int fd, char *buf, int nbytes)
     //direct blocks
     if(lblk < 12 ) 
     {
-      if(mip->INODE.i_block[lblk]==0){
+      printf("direct\n");
+      if(mip->INODE.i_block[lblk] == 0)
+      {
         mip->INODE.i_block[lblk] = balloc(mip->dev);
       }
       blk = mip->INODE.i_block[lblk];
@@ -252,26 +254,60 @@ int my_write(int fd, char *buf, int nbytes)
     //indirect blocks
     else if(lblk >= 12 && lblk < 256 + 12) 
     {
-      if(mip->INODE.i_block[12]==0){
+      printf("indirect lblk = %d\n", lblk);
+      lblk -= 12;
+      if(mip->INODE.i_block[12] == 0)
+      {
         mip->INODE.i_block[12] = balloc(mip->dev);
-        memset(ibuf,0,256);
+        memset(ibuf,0,BLKSIZE);
+        put_block(mip->dev, mip->INODE.i_block[12], ibuf);
       }
-      get_block(mip->dev, mip->INODE.i_block[12], (char *)ibuf);
-      blk = ibuf[lblk - 12];
-      if (blk==0){
-        mip->INODE.i_block[lblk] = balloc(mip->dev);
-        ibuf[lblk - 12] =mip->INODE.i_block[lblk];
-      }
+      get_block(mip->dev, mip->INODE.i_block[12], ibuf);
+      blk = ibuf[lblk];
+      if (blk == 0)
+      {
+        blk = balloc(mip->dev);
+        ibuf[lblk] = blk;
+        put_block(mip->dev, mip->INODE.i_block[12], ibuf);
+      } 
     }
     //double indirect blocks
     else 
     {
-      memset(ibuf, 0, 256);
-      get_block(mip->dev, mip->INODE.i_block[13], (char  *)dbuf);
+      printf("double indirect lblk = %d\n", lblk);
       lblk -= (12 + 256);
-      dblk = dbuf[lblk / 256];
-      get_block(mip->dev, dblk, (char *)dbuf);
-      blk = dbuf[lblk % 256];
+      dblk = lblk / 256;
+      offset = lblk % 256;
+      if(mip->INODE.i_block[13] == 0)
+      {
+        printf("allocating direct[%d]\n", 13);
+        mip->INODE.i_block[13] = balloc(mip->dev);
+        memset(ibuf,0,BLKSIZE);
+        put_block(mip->dev, mip->INODE.i_block[13], ibuf);
+      }
+      printf("dblk = %d offset = %d\n", dblk, offset);
+      get_block(mip->dev, mip->INODE.i_block[13], ibuf);
+      iblk = ibuf[dblk];
+      printf("iblk = %d\n", iblk);
+      if(iblk == 0)
+      {
+        printf("allocating indirect[%d]\n", dblk);
+        iblk = balloc(mip->dev);
+        memset(ibuf,0,BLKSIZE);
+        ibuf[lblk]= iblk;
+        put_block(mip->dev, mip->INODE.i_block[13], ibuf);
+      }
+      get_block(mip->dev, iblk, ibuf);
+      blk = ibuf[offset];
+      printf("blk = %d\n", blk);
+      if(blk == 0)
+      {
+        printf("allocating double indirect[%d]\n", offset);
+        blk = balloc(mip->dev);
+        ibuf[offset] = blk;
+        put_block(mip->dev, iblk, ibuf);    
+      }
+      //printf("blf = %d", blk);
     }
 
 
@@ -281,16 +317,6 @@ int my_write(int fd, char *buf, int nbytes)
     get_block(mip->dev, blk, writeBuf);
     cp = writeBuf + start;
     remain = BLKSIZE - start;
-    //copy
-    // printf("cq = %s\n",cq);
-    // while (remain > 0){               // write as much as remain allows  
-    //        *cp++ = *cq++;              // cq points at buf[ ]
-    //        nbytes--; remain--;         // dec counts
-    //        oftp->offset++;             // advance offset
-    //        if (oftp->offset > mip->INODE.i_size)  // especially for RW|APPEND mode
-    //            mip->INODE.i_size++;    // inc file size (if offset > fileSize)
-    //        if (nbytes <= 0) break;     // if already nbytes, break
-    //  }
     if(remain < nbytes)
     {
       strncpy(cp, cq, remain);
@@ -424,16 +450,10 @@ int my_read(int fd, char *buf, int nbytes)
 
       indirect_blk = (lbk - 256 - 12) / 256;
       indirect_off = (lbk - 256 - 12) % 256;
-      printf("blk = %d, ofset = %d\n", indirect_blk, indirect_off);
-      getchar();
-
       ip = (int *)readbuf + indirect_blk;
-      getchar();
       get_block(mip->dev, *ip, readbuf);
-      getchar();
       ip = (int *)readbuf + indirect_off;
       blk = *ip;
-      getchar();
       //printf("double indirect\n");
     }
 
@@ -514,7 +534,7 @@ int my_cat(char *pathname)
 {
   char mybuf[BLKSIZE], dummy = 0;
   int n;
-  char* temppath;
+  char temppath[BLKSIZE];
   strcpy(temppath, pathname);
   strcat(temppath," R");
   int fd = open_file(temppath);
