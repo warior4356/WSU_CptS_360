@@ -93,14 +93,10 @@ int open_file(char *pathname)
   mip = iget(dev, ino);
   ino = search(dev, child, &(mip->INODE));
 
-  if(ino <= 0){
-    my_creat(child);//create if DNE
-    ino = getino(dev,child);
-    if( 0 >= ino)
-    {
+  if(ino <= 0)
+  {
     printf("Open file Err\n");
     return -1;
-    }
   }
 
   mip = iget(dev, ino);
