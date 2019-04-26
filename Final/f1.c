@@ -1,6 +1,7 @@
 #include "header.h"
 #include "util.h"
 
+//create process 0 and 1, start running process, zero out MINODES and MountTable
 int init()
 {
   proc[0].uid = 0;
@@ -9,7 +10,7 @@ int init()
   proc[1].cwd = 0;
 
   running = &(proc[0]);
-  readQueue = &(proc[1]);
+  readQueue = &(proc[1]); //currently unused
   int i = 0;
   for(i = 0; i < 64; i++)
   {
@@ -20,6 +21,8 @@ int init()
   root = 0;
 }
 
+// open disk, use superblock to verify is ext2, get block map and INODE map, 
+// records info about disk in MountTable
 int mount_root(char *diskname)
 {
   char buf[BLKSIZE];
@@ -30,8 +33,8 @@ int mount_root(char *diskname)
     printf("open %s failed\n", diskname);
     exit(1);
   }
-  get_super(dev, buf);
-  sp = (SUPER*)buf;
+  get_super(dev, buf); // puts SUPERBLOCK in buf
+  sp = (SUPER*)buf; // sp = super pointer
   if (SUPER_MAGIC != sp->s_magic)
   {
     printf("Not an EXT2 file sytem\n");
@@ -40,7 +43,7 @@ int mount_root(char *diskname)
   //Set inodeBegin to start
   //Set root inode
   //set cwd proc to root inode
-  get_inode_table(dev); 
+  get_inode_table(dev); //get INODE map and block map
   ninodes = sp->s_inodes_count;
   root = iget(dev, ROOT_INODE); 
   proc[0].cwd = iget(dev, ROOT_INODE); 
@@ -49,13 +52,14 @@ int mount_root(char *diskname)
   MountTable[0].ninodes = ninodes;
   MountTable[0].nblocks = sp->s_blocks_count;
   MountTable[0].dev = dev;
-  strncpy(MountTable[0].name, diskname, 256);
+  strncpy(MountTable[0].name, diskname, 256); // places root disk on mount table 0
   return dev;
 }
 
 /*    START FUNCTIONS 1     */
 
-
+// gets either root's ino or path's ino, uses to get MINODE, verifies is dir, 
+// writes cwd to disk, sets cwd to MINODE
 int my_chdir(char* pathname)
 {
   MINODE *mip;
@@ -79,9 +83,9 @@ int my_chdir(char* pathname)
   running->cwd = mip;   //new minode to mip
 }
 
+// checks if path, cheks if absolute or relative, does path->ino->mip, then either runs on file or dir
 int my_ls(char *path)
 {
-
   unsigned long ino;
   MINODE *mip, *pip;
   int device = running->cwd->dev;
@@ -90,9 +94,7 @@ int my_ls(char *path)
   if(path[0] == 0)// print cwd
   {
     mip = iget(device, running->cwd->ino);
-
     ls_dir(device, mip);
-
   }
   else
   {
@@ -104,12 +106,13 @@ int my_ls(char *path)
     //DNE
     if(ino == -1 || ino == 0)
     {
+      printf("Does not exist!\n");
       return 1;
     }
     mip = iget(device, ino);
 
     //check dir
-    if(((mip->INODE.i_mode) & 0040000)!= 0040000)
+    if(((mip->INODE.i_mode) & 0040000)!= 0040000) // checks if not dir
     {
       //get basename
       if(findparent(path))
@@ -132,6 +135,7 @@ int my_ls(char *path)
   return 0;
 }
 
+// gets and prints the info of a file, checks if symlink, link, dir
 void ls_file(MINODE *mip, char *namebuf)
 {
     INODE* pip = &mip->INODE;
@@ -172,6 +176,7 @@ void ls_file(MINODE *mip, char *namebuf)
     printf("\n");
 }
 
+// itterate through all 12 blocks, if block exists run ls_file on each record in block
 void ls_dir(int devicename, MINODE *mp)
 {
   char buf[BLKSIZE], namebuf[256], *cp;
@@ -206,12 +211,16 @@ void ls_dir(int devicename, MINODE *mp)
     }
   }
 }
+
+//Acts as a wrapper, inputs running->cwd into real
 int my_pwd(char *pathname)
 {
   printf("cwd = ");
   rpwd(running->cwd);
   printf("\n");
 }
+
+// Check if root, else recursively print parent until root, print this dir's name in parent
 int rpwd(MINODE *wd)
 {
   int ino = 0;
@@ -242,6 +251,7 @@ int rpwd(MINODE *wd)
   return 1;
 }
 
+// Seperates path, verfies parent path is legal, makes sure new dir does not exist, creates new dir
 int my_mkdir(char *pathname)
 {
   int dev1, ino, r;
@@ -291,6 +301,9 @@ int my_mkdir(char *pathname)
   return r;
 }
 
+// Allocate INODE and block, get MINODE, record mip as a dir, save mip to disk, set . and ..
+// Find last block, check if there is room, if so write there else allocate new block
+// Last entry fills block, update parent time and dirt at end
 int rmkdir(MINODE *pip, char child[256])
 {
   int inumber, bnumber, idealLen, needLen, newRec, i, j;
@@ -390,6 +403,7 @@ int rmkdir(MINODE *pip, char child[256])
   return 1;
 }
 
+// If not exist make block, update time and dirt
 int my_touch (char* name)
 {
   char buf[1024];
@@ -410,6 +424,7 @@ int my_touch (char* name)
   return 1;
 }
 
+// Wrapper, splits path into parent and child, inside parent it tries to make child
 int my_creat(char* pathname)
 {
   int dev1, ino, r;
@@ -455,6 +470,8 @@ int my_creat(char* pathname)
   return r;
 }
 
+// Similar to mkdir, get ino and MINODE, write contents, wrtie to disk, find last block in parent
+// if there is room in block write child, else new block write child, finally update parent dirt and time
 int creat_file(MINODE *pip, char child[256])
 {
   int inumber, bnumber, idealLen, needLen, newRec, i, j;
@@ -528,6 +545,7 @@ int creat_file(MINODE *pip, char child[256])
   return 1;
 }
 
+// check args, parse mode, use bitwise to set mode
 int my_chmod(char* pathname)
 {
   char buf[1024];
@@ -561,6 +579,8 @@ int my_chmod(char* pathname)
   return 1;
 }
 
+// Wrapper, verify not in dir, verify is dir, verify is args, verify is empty, 
+// deallocate blocks, handle others in parent dir, update time and dirt
 int my_rmdir(char *pathname)
 {
   int ino, i;
@@ -635,6 +655,10 @@ int my_rmdir(char *pathname)
   return 1;
 }
 
+// Three cases to handle:
+// If last entry in block, remove entry and add it's length to second to last entry
+// If middle/first in block, shift all entries after to the left, extend the last entry's rec len
+// If only entry in block, shift all blocks after up one
 int rm_child(MINODE *pip, char *child)
 {
   int i, size, found = 0;
@@ -710,6 +734,8 @@ int rm_child(MINODE *pip, char *child)
   return -1;
 }
 
+// parse, check if legal, add new entry to parent dir with same ino, 
+// increment links count of INODE
 int my_link(char* pathname)
 {
   char oldFile[256], newFile[256], parent[256], child[256], buf[BLKSIZE];
@@ -808,6 +834,7 @@ int my_link(char* pathname)
   return 1;
 }
 
+// Parse, verify, decrement links, if last link, rm data, rm_child
 int my_unlink(char *pathname)
 {
   char oldFile[256], parent[256], child[256], buf[BLKSIZE], oldPath[512];
@@ -849,6 +876,8 @@ int my_unlink(char *pathname)
   iput(mip->dev, mip2);
 }
 
+// truncates direct, indirect and double indirect by setting all non direct blocks to 0s,
+// Deallocates all blocks.
 int rm(MINODE *mip)
 {
   int i, j;
@@ -899,6 +928,7 @@ int rm(MINODE *mip)
   return 1;
 }
 
+// Parse, verify, make new file that's a link to input
 int my_symlink(char *pathname)
 {
   char oldname[256], newname[256];
@@ -922,6 +952,7 @@ int my_symlink(char *pathname)
   iput(mip->dev, mip);
 }
 
+// clean up any open MINODES, exit
 int quit(char* pathname)
 {
   int i = 0;
@@ -940,6 +971,7 @@ int quit(char* pathname)
   exit(0);
 }
 
+// verify legal, print info about MINODE
 int my_stat (char *pathname)
 {
   char buf[1024];
